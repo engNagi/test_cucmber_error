@@ -1,20 +1,25 @@
 package test;
 
-import cucumber.api.DataTable;
+import cucumber.api.Argument;
+import cucumber.api.CucumberOptions;
 import cucumber.api.Scenario;
-import cucumber.api.java.After;
-import cucumber.api.java.Before;
+import io.cucumber.datatable.DataTable;
 import cucumber.api.java.en.And;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
+
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import static org.junit.Assert.fail;
 import org.openqa.selenium.*;
+import org.openqa.selenium.WebDriver.Options;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.FluentWait;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
 
 import java.time.Duration;
 import java.util.List;
@@ -22,55 +27,19 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class StepDefinitions {
-    static WebDriver driver;
+    PrimaryDefinitions pd = new PrimaryDefinitions();
+    static WebDriver driver = PrimaryDefinitions.driver;
     String username;
     String userid;
-
-    @Before
-    public void before() {
-        driver = new ChromeDriver();
-        driver.manage().window().setSize(new Dimension(1280, 800));
-        //driver.manage().deleteAllCookies();
-    }
-
-    @After ("@LoginAdmin")
-    public void after(Scenario scenario) {
-        if (!scenario.isFailed()) {
-            //System.out.printf("Scenario has been verified %s", scenario);
-
-            Actions action = new Actions(driver);
-            action.moveToElement(driver.findElement(By.id("wp-admin-bar-my-account"))).perform();
-
-            WebElement e_abmelden = new FluentWait<WebDriver>(driver).withTimeout(Duration.ofSeconds(5)).pollingEvery(Duration.ofSeconds(1)).ignoring(NoSuchElementException.class).until(new Function<WebDriver, WebElement>() {
-            public WebElement apply(WebDriver driver) {
-                return driver.findElement(By.linkText("Abmelden"));
-                }
-            });
-
-            e_abmelden.click();
-
-            WebElement e_message = new FluentWait<WebDriver>(driver).withTimeout(Duration.ofSeconds(5)).pollingEvery(Duration.ofSeconds(1)).ignoring(NoSuchElementException.class).until(new Function<WebDriver, WebElement>() {
-                public WebElement apply(WebDriver driver) {
-                    return driver.findElement(By.className("message"));
-                }
-            });
-
-            Assert.assertEquals(e_message.getText().contains("Du hast dich erfolgreich abgemeldet."), true);
-        }
-    }
-
-    @After (order=1)
-    public void afterAll() {
-        driver.close();
-        driver.quit();
-    }
+    boolean error;
+    boolean usernok;
 
     @Given("^We navigate to NCS homepage$")
     public void we_navigate_to_NCS_homepage() {
         driver.get("http://localhost/");
         Assert.assertEquals(driver.getCurrentUrl(), "http://localhost/");
-        System.out.printf("%s \n", driver.getCurrentUrl());
-        System.out.printf("%s \n", driver.getTitle());
+        //System.out.printf("%s \n", driver.getCurrentUrl());
+        //System.out.printf("%s \n", driver.getTitle());
     }
 
     @When("^We click on the button ANMELDEN$")
@@ -187,6 +156,10 @@ public class StepDefinitions {
             driver.findElement(By.id("pass1-text")).sendKeys(list.get(i).get("Passwort").replaceAll("^(.)(.*)", "$1"));
             driver.findElement(By.id("pass1-text")).sendKeys(list.get(i).get("Passwort").replaceAll("^(.)(.*)", "$2"));
 
+            if ( driver.findElement(By.className("pw-checkbox")).isDisplayed() ){
+                driver.findElement(By.className("pw-checkbox")).click();
+            }
+
             driver.findElement(By.id("send_user_notification")).click();
 
             new Select(driver.findElement(By.id("role"))).selectByVisibleText(list.get(i).get("Rolle"));
@@ -248,16 +221,54 @@ public class StepDefinitions {
 
     @When("^we click on Löschen for the following user$")
     public void weClickOnLöschenForTheFollowingUser(DataTable userdel) {
-        List<List<String>> list = userdel.raw();
+        List<List<String>> list = userdel.asLists();
+        String failuremessage = "";
 
         for(int i=0; i<list.get(0).size(); i++) {
             username = list.get(0).get(i);
-            System.out.printf(username);
-            userid = driver.findElement(By.linkText(username)).getAttribute("href").replaceAll("^.*user_id=(\\d*).*$", "$1");
-            System.out.println(userid);
 
-            Actions action = new Actions(driver);
-            action.moveToElement(driver.findElement(By.linkText(username))).perform();
+            if ( !driver.findElements(By.className("first-page")).isEmpty() ){
+                driver.findElement(By.className("first-page")).click();
+            } else if ( !driver.findElements(By.className("prev-page")).isEmpty() ){
+                driver.findElement(By.className("prev-page")).click();
+            }
+
+            do {
+                usernok = false;
+                try {
+                    userid = driver.findElement(By.linkText(username)).getAttribute("href").replaceAll("^.*user_id=(\\d*).*$", "$1");
+
+                    Actions action = new Actions(driver);
+                    action.moveToElement(driver.findElement(By.linkText(username))).perform();
+                    break;
+                } catch (Exception errlog) {
+                    if (errlog.getMessage().contains("Unable to locate element") && !driver.findElements(By.className("next-page")).isEmpty()) {http://localhost/wp-admin/users.php?paged=2
+                    driver.findElement(By.className("next-page")).click();
+                    } else if (errlog.getMessage().contains("is out of bounds of viewport")) {
+                        WebElement e_scrollinto = driver.findElement(By.linkText(username));
+                        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", e_scrollinto);
+                        Actions action = new Actions(driver);
+                        action.moveToElement(driver.findElement(By.linkText(username))).perform();
+                        break;
+                    } else {
+                        String array[] = errlog.getMessage().split("\n");
+                        //System.out.println(array[0]);
+
+                        failuremessage = failuremessage + "\n" + array[0];
+
+                        error = true;
+                        usernok = true;
+
+                        // Implement screenshot for reporting function
+
+                        break;
+                    }
+                }
+            } while (true);
+
+            if ( usernok ) {
+                continue;
+            }
 
             WebElement e_userdel = new FluentWait<WebDriver>(driver).withTimeout(Duration.ofSeconds(5)).pollingEvery(Duration.ofSeconds(1)).ignoring(NoSuchElementException.class).until(new Function<WebDriver, WebElement>() {
                 public WebElement apply(WebDriver driver) {
@@ -289,6 +300,11 @@ public class StepDefinitions {
 
             Assert.assertEquals(e_message.getText().startsWith("Benutzer gelöscht"), true);
 
+        }
+
+        if ( error ) {
+            fail(failuremessage);
+            //System.out.println(failuremessage);
         }
     }
 

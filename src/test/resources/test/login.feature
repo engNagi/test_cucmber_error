@@ -53,5 +53,5 @@ Feature: Verification of user login and management of the website
     Given We navigate to NCS homepage and login as admin
     Given We click on the button Benutzer
     When we click on Löschen for the following user
-      | Mitarbeiter-Klaus | Redakteur-Wilhelm | Autor-Joerg | Abonnent-Ludwig |
+      | Mitarbeiter-Klaus | Redakteu-Wilhelm | Auto-Joerg | Abonnent-Ludwig |
     Then Deletion is ok

@@ -5,10 +5,11 @@ import cucumber.api.junit.Cucumber;
 import org.junit.runner.RunWith;
 
 @RunWith(Cucumber.class)
-@CucumberOptions(
+//@CucumberOptions(
         plugin = {"pretty"}
-        , tags = {"@DeleteUserList"}
+        , tags = {"@LoginAdmin"}
         )
 
 public class RunCucumberTest {
+
 }
